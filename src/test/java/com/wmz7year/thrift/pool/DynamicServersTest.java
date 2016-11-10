@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -25,60 +25,68 @@ import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
 import com.wmz7year.thrift.pool.example.Example;
 import com.wmz7year.thrift.pool.example.Example.Client;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 测试动态添加或者删除服务器列表功能
  */
 public class DynamicServersTest extends BasicAbstractTest {
 
-	private List<ThriftServerInfo> servers;
+    private List<ThriftServerInfo> servers;
 
-	@Override
-	protected void beforeTest() throws Exception {
-		this.servers = startServers(2);
-	}
+    @Override
+    protected void beforeTest() throws Exception {
+        this.servers = startServers(2);
+    }
 
-	public void testDynamicServer() throws Throwable {
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		config.setClientClass(Example.Client.class);
-		for (ThriftServerInfo thriftServerInfo : servers) {
-			config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
-		}
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
+    public void testDynamicServer() throws Throwable {
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
+        config.setConnectTimeout(3000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setClientClass(Example.Client.class);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
+        for (ThriftServerInfo thriftServerInfo : servers) {
+            config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
+        }
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
 
-		int testCount = (servers.size() + 1) * config.getMaxConnectionPerServer() * 10;
+        int testCount = (servers.size() + 1) * config.getMaxConnectionPerServer() * 10;
 
-		int currentServer = pool.getThriftServerCount();
-		ThriftServerInfo newServer = startServer();
-		for (int i = 0; i < testCount; i++) {
-			if (i % 3 == 0) {
-				logger.info("添加新服务器");
-				pool.addThriftServer(newServer);
-				currentServer++;
-				assertEquals(currentServer, pool.getThriftServerCount());
-			} else if (i % 7 == 0) {
-				logger.info("移除服务器");
-				pool.removeThriftServer(newServer);
-				currentServer--;
-				assertEquals(currentServer, pool.getThriftServerCount());
-			}
-			ThriftConnection<Client> connection = pool.getConnection();
-			connection.getClient().ping();
-			connection.close();
-		}
+        int currentServer = pool.getThriftServerCount();
+        ThriftServerInfo newServer = startServer();
+        for (int i = 0; i < testCount; i++) {
+            if (i % 3 == 0) {
+                logger.info("添加新服务器");
+                pool.addThriftServer(newServer);
+                currentServer++;
+                assertEquals(currentServer, pool.getThriftServerCount());
+            } else if (i % 7 == 0) {
+                logger.info("移除服务器");
+                pool.removeThriftServer(newServer);
+                currentServer--;
+                assertEquals(currentServer, pool.getThriftServerCount());
+            }
+            ThriftConnection<Client> connection = pool.getConnection();
+            connection.getClient().ping();
+            connection.close();
+        }
 
-		pool.close();
-	}
+        pool.close();
+    }
 
-	@Override
-	protected void afterTest() throws Exception {
-		// ignore
-	}
+    @Override
+    protected void afterTest() throws Exception {
+        // ignore
+    }
 }

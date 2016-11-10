@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -27,61 +27,69 @@ import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig.TProtocolType;
 import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig.ThriftServiceType;
 import com.wmz7year.thrift.pool.example.Example;
 import com.wmz7year.thrift.pool.example.Other;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 当服务器移除连接池时 需要及时停止对应的监控线程
  */
 public class ThrfitConnectionPoolRemoveServerStopThreadTest extends BasicAbstractTest {
 
-	private List<ThriftServerInfo> servers;
+    private List<ThriftServerInfo> servers;
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.BasicAbstractTest#beforeTest()
-	 */
-	@Override
-	protected void beforeTest() throws Exception {
-		this.servers = startServers(1);
-	}
+     */
+    @Override
+    protected void beforeTest() throws Exception {
+        this.servers = startServers(1);
+    }
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.BasicAbstractTest#afterTest()
-	 */
-	@Override
-	protected void afterTest() throws Exception {
-		// ignore
-	}
+     */
+    @Override
+    protected void afterTest() throws Exception {
+        // ignore
+    }
 
-	public void testThriftConnectionPoolRemoveServerStopThread() throws Exception {
+    public void testThriftConnectionPoolRemoveServerStopThread() throws Exception {
 
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig(ThriftServiceType.MULTIPLEXED_INTERFACE);
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		// 该端口不存在
-		ThriftServerInfo thriftServerInfo = servers.get(0);
-		config.addThriftServer(thriftServerInfo);
-		config.addThriftClientClass("example", Example.Client.class);
-		config.addThriftClientClass("other", Other.Client.class);
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig(ThriftServiceType.MULTIPLEXED_INTERFACE);
+        config.setConnectTimeout(3000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
+        // 该端口不存在
+        ThriftServerInfo thriftServerInfo = servers.get(0);
+        config.addThriftServer(thriftServerInfo);
+        config.addThriftClientClass("example", Example.Client.class);
+        config.addThriftClientClass("other", Other.Client.class);
 
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		config.setAcquireIncrement(2);
-		config.setAcquireRetryDelay(2000);
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        config.setAcquireIncrement(2);
+        config.setAcquireRetryDelay(2000);
 
-		config.setAcquireRetryAttempts(1);
-		config.setMaxConnectionCreateFailedCount(1);
-		config.setConnectionTimeoutInMs(5000);
+        config.setAcquireRetryAttempts(1);
+        config.setMaxConnectionCreateFailedCount(1);
+        config.setConnectionTimeoutInMs(5000);
 
-		ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<TServiceClient>(config);
-		pool.getConnection().close();
+        ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<TServiceClient>(config);
+        pool.getConnection().close();
 
-		// 移除并且停止服务
-		pool.removeThriftServer(thriftServerInfo);
-		stopAllServers();
-		pool.close();
+        // 移除并且停止服务
+        pool.removeThriftServer(thriftServerInfo);
+        stopAllServers();
+        pool.close();
 
-	}
+    }
 
 }

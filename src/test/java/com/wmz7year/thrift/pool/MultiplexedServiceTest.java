@@ -56,6 +56,7 @@ public class MultiplexedServiceTest extends BasicAbstractTest {
         config.setConnectTimeout(3000);
 
         config.setThriftProtocol(TProtocolType.BINARY);
+        
         config.setTransportProvider(new TTransportProvider() {
             @Override
             public TTransport get(String host, int port, int connectionTimeOut) throws Exception {

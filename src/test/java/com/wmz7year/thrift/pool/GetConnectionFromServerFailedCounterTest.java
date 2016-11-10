@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -23,72 +23,80 @@ import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig;
 import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig.TProtocolType;
 import com.wmz7year.thrift.pool.example.Example;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 当连接池从服务器获取N次连接后依然无法获取连接时  应当删除服务器信息
  */
 public class GetConnectionFromServerFailedCounterTest extends BasicAbstractTest {
-	private List<ThriftServerInfo> servers;
 
-	@Override
-	protected void beforeTest() throws Exception {
-		servers = startServers(1);
-	}
+    private List<ThriftServerInfo> servers;
 
-	@Override
-	protected void afterTest() throws Exception {
-		// TODO Auto-generated method stub
+    @Override
+    protected void beforeTest() throws Exception {
+        servers = startServers(1);
+    }
 
-	}
+    @Override
+    protected void afterTest() throws Exception {
+        // TODO Auto-generated method stub
 
-	public void testConnectionFaildCounter() throws Exception {
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		config.setClientClass(Example.Client.class);
-		// 该端口不存在
-		config.addThriftServer(servers.get(0));
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		config.setAcquireIncrement(2);
-		config.setAcquireRetryDelay(2000);
+    }
 
-		config.setAcquireRetryAttempts(1);
-		config.setMaxConnectionCreateFailedCount(1);
-		config.setConnectionTimeoutInMs(5000);
+    public void testConnectionFaildCounter() throws Exception {
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
+        config.setConnectTimeout(3000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
+        config.setClientClass(Example.Client.class);
+        // 该端口不存在
+        config.addThriftServer(servers.get(0));
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        config.setAcquireIncrement(2);
+        config.setAcquireRetryDelay(2000);
 
-		ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
+        config.setAcquireRetryAttempts(1);
+        config.setMaxConnectionCreateFailedCount(1);
+        config.setConnectionTimeoutInMs(5000);
 
-		// 正常获取连接
-		pool.getConnection().getClient().ping();
+        ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
 
-		// 关闭服务器
-		stopAllServers();
-		// 等待连接关闭
-		TimeUnit.SECONDS.sleep(5);
+        // 正常获取连接
+        pool.getConnection().getClient().ping();
 
-		try {
-			// 服务器失效的情况下获取连接
-			pool.getConnection().getClient().ping();
-		} catch (Exception e) {
-			// ignore
-		}
-		
-		// 移除后服务器数量应该为0
-		assertEquals(pool.getThriftServerCount(), 0);
-		
-		try {
-			// 再次获取连接应该抛出无可用服务器的异常
-			pool.getConnection().getClient().ping();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+        // 关闭服务器
+        stopAllServers();
+        // 等待连接关闭
+        TimeUnit.SECONDS.sleep(5);
 
-	
-		pool.close();
-	}
+        try {
+            // 服务器失效的情况下获取连接
+            pool.getConnection().getClient().ping();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        // 移除后服务器数量应该为0
+        assertEquals(pool.getThriftServerCount(), 0);
+
+        try {
+            // 再次获取连接应该抛出无可用服务器的异常
+            pool.getConnection().getClient().ping();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        pool.close();
+    }
 
 }

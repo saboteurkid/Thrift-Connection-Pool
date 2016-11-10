@@ -13,56 +13,64 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.concurrent.TimeUnit;
 
 import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig;
 import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig.TProtocolType;
 import com.wmz7year.thrift.pool.example.Example;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 没有服务器时启动连接连接池的测试
  */
 public class NoThriftServerStartPoolTest extends BasicAbstractTest {
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.BasicAbstractTest#beforeTest()
-	 */
-	@Override
-	protected void beforeTest() throws Exception {
+     */
+    @Override
+    protected void beforeTest() throws Exception {
 
-	}
+    }
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.BasicAbstractTest#afterTest()
-	 */
-	@Override
-	protected void afterTest() throws Exception {
+     */
+    @Override
+    protected void afterTest() throws Exception {
 
-	}
+    }
 
-	public void testNoThriftServerStartPool() throws Exception {
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		config.setClientClass(Example.Client.class);
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		config.setAcquireIncrement(2);
-		config.setAcquireRetryDelay(2000);
-		config.setAcquireRetryAttempts(1);
-		config.setMaxConnectionCreateFailedCount(1);
-		config.setConnectionTimeoutInMs(5000);
-		// 设置支持没有thrift服务器启动
-		config.setNoServerStartUp(true);
+    public void testNoThriftServerStartPool() throws Exception {
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
+        config.setConnectTimeout(3000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
+        config.setClientClass(Example.Client.class);
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        config.setAcquireIncrement(2);
+        config.setAcquireRetryDelay(2000);
+        config.setAcquireRetryAttempts(1);
+        config.setMaxConnectionCreateFailedCount(1);
+        config.setConnectionTimeoutInMs(5000);
+        // 设置支持没有thrift服务器启动
+        config.setNoServerStartUp(true);
 
-		ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
-		assertEquals(0, pool.getThriftServerCount());
-		pool.close();
-	}
+        ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
+        assertEquals(0, pool.getThriftServerCount());
+        pool.close();
+    }
 }

@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -25,42 +25,50 @@ import com.wmz7year.thrift.pool.connection.ThriftConnection;
 import com.wmz7year.thrift.pool.config.ThriftConnectionPoolConfig.TProtocolType;
 import com.wmz7year.thrift.pool.example.Example;
 import com.wmz7year.thrift.pool.example.Example.Client;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 检测连接是否可用  反射调用ping方法
  */
 public class CheckConnectionAlive extends BasicAbstractTest {
 
-	private List<ThriftServerInfo> servers;
+    private List<ThriftServerInfo> servers;
 
-	@Override
-	protected void beforeTest() throws Exception {
-		this.servers = startServers(1);
-	}
+    @Override
+    protected void beforeTest() throws Exception {
+        this.servers = startServers(1);
+    }
 
-	@Override
-	protected void afterTest() throws Exception {
-	}
+    @Override
+    protected void afterTest() throws Exception {
+    }
 
-	public void testConnectionAlive() throws Exception {
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		config.setClientClass(Example.Client.class);
-		for (ThriftServerInfo thriftServerInfo : servers) {
-			config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
-		}
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
+    public void testConnectionAlive() throws Exception {
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
+        config.setConnectTimeout(3000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
+        config.setClientClass(Example.Client.class);
+        for (ThriftServerInfo thriftServerInfo : servers) {
+            config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
+        }
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        ThriftConnectionPool<Example.Client> pool = new ThriftConnectionPool<Example.Client>(config);
 
-		ThriftConnection<Client> connection = pool.getConnection();
-		assertTrue(pool.isConnectionHandleAlive((ThriftConnectionHandle<Client>) connection));
+        ThriftConnection<Client> connection = pool.getConnection();
+        assertTrue(pool.isConnectionHandleAlive((ThriftConnectionHandle<Client>) connection));
 
-		pool.close();
-	}
+        pool.close();
+    }
 
 }

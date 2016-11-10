@@ -16,6 +16,7 @@
 
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -31,6 +32,8 @@ import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
 import com.wmz7year.thrift.pool.example.Example;
 import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 服务端响应超时的单元测试
@@ -61,6 +64,12 @@ public class TimeoutConnectionTest extends BasicAbstractTest {
         ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig();
         config.setConnectTimeout(3000);
         config.setThriftProtocol(TProtocolType.BINARY);
+                config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeout) throws Exception {
+                return new TSocket(host, port, connectionTimeout);
+            }
+        });
         // 该端口不存在
         for (ThriftServerInfo thriftServerInfo : servers) {
             config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
