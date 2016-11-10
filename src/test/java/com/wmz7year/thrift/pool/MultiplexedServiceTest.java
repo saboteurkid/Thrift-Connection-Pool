@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool;
 
+import com.sk.transport.TTransportProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -29,61 +29,71 @@ import com.wmz7year.thrift.pool.example.Example;
 import com.wmz7year.thrift.pool.example.Other;
 import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 /*
  * 多服务测试
  */
 public class MultiplexedServiceTest extends BasicAbstractTest {
 
-	private List<ThriftServerInfo> servers;
+    private List<ThriftServerInfo> servers;
 
-	@Override
-	protected void beforeTest() throws Exception {
-		this.servers = startMulitServiceServers(1);
-	}
+    @Override
+    protected void beforeTest() throws Exception {
+        this.servers = startMulitServiceServers(1);
+    }
 
-	@Override
-	protected void afterTest() throws Exception {
-		// TODO Auto-generated method stub
+    @Override
+    protected void afterTest() throws Exception {
+        // TODO Auto-generated method stub
 
-	}
+    }
 
-	public void testMultiplexedService() throws Exception {
-		ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig(ThriftServiceType.MULTIPLEXED_INTERFACE);
-		config.setConnectTimeout(3000);
-		config.setThriftProtocol(TProtocolType.BINARY);
-		// 该端口不存在
-		for (ThriftServerInfo thriftServerInfo : servers) {
-			config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
-		}
-		config.addThriftClientClass("example", Example.Client.class);
-		config.addThriftClientClass("other", Other.Client.class);
+    public void testMultiplexedService() throws Exception {
+        ThriftConnectionPoolConfig config = new ThriftConnectionPoolConfig(ThriftServiceType.MULTIPLEXED_INTERFACE);
+        config.setConnectTimeout(3000);
 
-		config.setMaxConnectionPerServer(2);
-		config.setMinConnectionPerServer(1);
-		config.setIdleMaxAge(2, TimeUnit.SECONDS);
-		config.setMaxConnectionAge(2);
-		config.setLazyInit(false);
-		config.setAcquireIncrement(2);
-		config.setAcquireRetryDelay(2000);
+        config.setThriftProtocol(TProtocolType.BINARY);
+        config.setTransportProvider(new TTransportProvider() {
+            @Override
+            public TTransport get(String host, int port, int connectionTimeOut) throws Exception {
+                return new TFramedTransport(new TSocket(host, port, connectionTimeOut));
+            }
+        });
+        // 该端口不存在
+        for (ThriftServerInfo thriftServerInfo : servers) {
+            config.addThriftServer(thriftServerInfo.getHost(), thriftServerInfo.getPort());
+        }
+        config.addThriftClientClass("example", Example.Client.class);
+        config.addThriftClientClass("other", Other.Client.class);
 
-		config.setAcquireRetryAttempts(1);
-		config.setMaxConnectionCreateFailedCount(1);
-		config.setConnectionTimeoutInMs(5000);
+        config.setMaxConnectionPerServer(2);
+        config.setMinConnectionPerServer(1);
+        config.setIdleMaxAge(2, TimeUnit.SECONDS);
+        config.setMaxConnectionAge(2);
+        config.setLazyInit(false);
+        config.setAcquireIncrement(2);
+        config.setAcquireRetryDelay(2000);
 
-		config.check();
+        config.setAcquireRetryAttempts(1);
+        config.setMaxConnectionCreateFailedCount(1);
+        config.setConnectionTimeoutInMs(5000);
 
-		ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<TServiceClient>(config);
-		ThriftConnection<TServiceClient> connection = pool.getConnection();
-		// example service
-		com.wmz7year.thrift.pool.example.Example.Client exampleServiceClient = connection.getClient("example",
-				Example.Client.class);
-		exampleServiceClient.ping();
+        config.check();
 
-		// other service
-		com.wmz7year.thrift.pool.example.Other.Client otherServiceClient = connection.getClient("other",
-				Other.Client.class);
-		otherServiceClient.ping();
-		pool.close();
-	}
+        ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<TServiceClient>(config);
+        ThriftConnection<TServiceClient> connection = pool.getConnection();
+        // example service
+        com.wmz7year.thrift.pool.example.Example.Client exampleServiceClient = connection.getClient("example",
+                Example.Client.class);
+        exampleServiceClient.ping();
+
+        // other service
+        com.wmz7year.thrift.pool.example.Other.Client otherServiceClient = connection.getClient("other",
+                Other.Client.class);
+        otherServiceClient.ping();
+        pool.close();
+    }
 }

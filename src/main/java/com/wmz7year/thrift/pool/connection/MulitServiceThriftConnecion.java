@@ -16,6 +16,7 @@
 
 package com.wmz7year.thrift.pool.connection;
 
+import com.sk.transport.TTransportProvider;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
@@ -70,6 +71,7 @@ public class MulitServiceThriftConnecion<T extends TServiceClient> implements Th
 	 * thrift连接对象
 	 */
 	private TTransport transport;
+        private TTransportProvider transportProvider;
 
 	/**
 	 * 实例化后的客户端对象
@@ -77,16 +79,18 @@ public class MulitServiceThriftConnecion<T extends TServiceClient> implements Th
 	private Map<String, T> clients = new HashMap<>();
 
 	public MulitServiceThriftConnecion(String host, int port, int connectionTimeOut, TProtocolType tProtocolType,
-			Map<String, Class<? extends TServiceClient>> thriftClientClasses) throws ThriftConnectionPoolException {
+			Map<String, Class<? extends TServiceClient>> thriftClientClasses, TTransportProvider transportProvider) throws ThriftConnectionPoolException {
 		this.host = host;
 		this.port = port;
 		this.connectionTimeOut = connectionTimeOut;
 		this.tProtocolType = tProtocolType;
 		this.thriftClientClasses = thriftClientClasses;
-
+                this.transportProvider = transportProvider;
 		// 创建连接
 		createConnection();
 	}
+        
+        
 
 	/**
 	 * 创建原始连接的方法
@@ -97,7 +101,11 @@ public class MulitServiceThriftConnecion<T extends TServiceClient> implements Th
 	@SuppressWarnings("unchecked")
 	private void createConnection() throws ThriftConnectionPoolException {
 		try {
+                        if(transportProvider == null){
 			transport = new TSocket(host, port, connectionTimeOut);
+                        }else{
+                            transport = transportProvider.get(host, port, connectionTimeOut);
+                        }
 			transport.open();
 			TProtocol protocol = createTProtocol(transport);
 

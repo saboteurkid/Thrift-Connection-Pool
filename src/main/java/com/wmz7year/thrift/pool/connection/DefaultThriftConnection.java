@@ -13,9 +13,9 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package com.wmz7year.thrift.pool.connection;
 
+import com.sk.transport.TTransportProvider;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 
@@ -33,124 +33,130 @@ import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
 
 /**
  * 默认实现的thrift客户端对象
- * 
+ *
  * @author jiangwei (ydswcy513@gmail.com)
  * @version V1.0
  */
 public class DefaultThriftConnection<T extends TServiceClient> implements ThriftConnection<T> {
-	private static final Logger logger = LoggerFactory.getLogger(DefaultThriftConnection.class);
 
-	/**
-	 * 服务器地址
-	 */
-	private String host;
-	/**
-	 * 服务器端口
-	 */
-	private int port;
-	/**
-	 * 连接超时时间
-	 */
-	private int connectionTimeOut;
-	/**
-	 * thrift管道类型
-	 */
-	private TProtocolType tProtocolType;
+    private static final Logger logger = LoggerFactory.getLogger(DefaultThriftConnection.class);
 
-	/**
-	 * thrift连接对象
-	 */
-	private TTransport transport;
+    /**
+     * 服务器地址
+     */
+    private String host;
+    /**
+     * 服务器端口
+     */
+    private int port;
+    /**
+     * 连接超时时间
+     */
+    private int connectionTimeOut;
+    /**
+     * thrift管道类型
+     */
+    private TProtocolType tProtocolType;
 
-	/**
-	 * thrift客户端对象
-	 */
-	private T client;
+    /**
+     * thrift连接对象
+     */
+    private TTransport transport;
 
-	/**
-	 * 客户端类对象
-	 */
-	private Class<? extends TServiceClient> clientClass;
+    /**
+     * thrift客户端对象
+     */
+    private T client;
 
-	public DefaultThriftConnection(String host, int port, int connectionTimeOut, TProtocolType tProtocolType,
-			Class<? extends TServiceClient> clientClass) throws ThriftConnectionPoolException {
-		this.host = host;
-		this.port = port;
-		this.connectionTimeOut = connectionTimeOut;
-		this.tProtocolType = tProtocolType;
-		this.clientClass = clientClass;
+    /**
+     * 客户端类对象
+     */
+    private Class<? extends TServiceClient> clientClass;
 
-		// 创建连接
-		createConnection();
-	}
+    private TTransportProvider transportProvider;
 
-	/**
-	 * 创建原始连接的方法
-	 * 
-	 * @throws ThriftConnectionPoolException
-	 *             创建连接出现问题时抛出该异常
-	 */
-	@SuppressWarnings("unchecked")
-	private void createConnection() throws ThriftConnectionPoolException {
-		try {
-			transport = new TSocket(host, port, connectionTimeOut);
-			transport.open();
-			TProtocol protocol = createTProtocol(transport);
-			// 反射实例化客户端对象
-			Constructor<? extends TServiceClient> clientConstructor = clientClass.getConstructor(TProtocol.class);
-			client = (T) clientConstructor.newInstance(protocol);
-			if (logger.isDebugEnabled()) {
-				logger.debug("创建新连接成功:" + host + " 端口：" + port);
-			}
-		} catch (Exception e) {
-			throw new ThriftConnectionPoolException("无法连接服务器：" + host + " 端口：" + port);
-		}
-	}
+    public DefaultThriftConnection(String host, int port, int connectionTimeOut, TProtocolType tProtocolType,
+            Class<? extends TServiceClient> clientClass, TTransportProvider transportProvider) throws ThriftConnectionPoolException {
+        this.host = host;
+        this.port = port;
+        this.connectionTimeOut = connectionTimeOut;
+        this.tProtocolType = tProtocolType;
+        this.clientClass = clientClass;
+        this.transportProvider = transportProvider;
+        // 创建连接
+        createConnection();
+    }
 
-	/**
-	 * 根据配置创建thrift管道的方法
-	 * 
-	 */
-	private TProtocol createTProtocol(TTransport transport) {
-		if (tProtocolType == TProtocolType.BINARY) {
-			return new TBinaryProtocol(transport);
-		} else if (tProtocolType == TProtocolType.JSON) {
-			return new TJSONProtocol(transport);
-		}
-		throw new IllegalStateException("暂不支持的管道类型：" + tProtocolType);
-	}
+    /**
+     * 创建原始连接的方法
+     *
+     * @throws ThriftConnectionPoolException 创建连接出现问题时抛出该异常
+     */
+    @SuppressWarnings("unchecked")
+    private void createConnection() throws ThriftConnectionPoolException {
+        try {
+            if (transportProvider == null) {
+                transport = new TSocket(host, port, connectionTimeOut);
+            } else {
+                transport = transportProvider.get(host, port, connectionTimeOut);
+            }
+            transport.open();
+            TProtocol protocol = createTProtocol(transport);
+            // 反射实例化客户端对象
+            Constructor<? extends TServiceClient> clientConstructor = clientClass.getConstructor(TProtocol.class);
+            client = (T) clientConstructor.newInstance(protocol);
+            if (logger.isDebugEnabled()) {
+                logger.debug("创建新连接成功:" + host + " 端口：" + port);
+            }
+        } catch (Exception e) {
+            throw new ThriftConnectionPoolException("无法连接服务器：" + host + " 端口：" + port);
+        }
+    }
 
-	/*
+    /**
+     * 根据配置创建thrift管道的方法
+     *
+     */
+    private TProtocol createTProtocol(TTransport transport) {
+        if (tProtocolType == TProtocolType.BINARY) {
+            return new TBinaryProtocol(transport);
+        } else if (tProtocolType == TProtocolType.JSON) {
+            return new TJSONProtocol(transport);
+        }
+        throw new IllegalStateException("暂不支持的管道类型：" + tProtocolType);
+    }
+
+    /*
 	 * @see java.io.Closeable#close()
-	 */
-	@Override
-	public void close() throws IOException {
-		if (transport != null) {
-			transport.close();
-		}
-	}
+     */
+    @Override
+    public void close() throws IOException {
+        if (transport != null) {
+            transport.close();
+        }
+    }
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.connection.ThriftConnection#getClient()
-	 */
-	@Override
-	public T getClient() {
-		return client;
-	}
+     */
+    @Override
+    public T getClient() {
+        return client;
+    }
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public <K extends TServiceClient> K getClient(String serviceName, Class<K> clazz) {
-		return (K) getClient();
-	}
+    @SuppressWarnings("unchecked")
+    @Override
+    public <K extends TServiceClient> K getClient(String serviceName, Class<K> clazz) {
+        return (K) getClient();
+    }
 
-	/*
+    /*
 	 * @see com.wmz7year.thrift.pool.connection.ThriftConnection#isClosed()
-	 */
-	@Override
-	public boolean isClosed() {
-		return !transport.isOpen();
-	}
+     */
+    @Override
+    public boolean isClosed() {
+        return !transport.isOpen();
+    }
 
     /*
      * @see com.wmz7year.thrift.pool.connection.ThriftConnection#setAvailable(boolean)
