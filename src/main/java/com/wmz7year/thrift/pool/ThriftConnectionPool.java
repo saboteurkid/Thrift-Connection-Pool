@@ -73,12 +73,12 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
     /**
      * 配置的服务器列表
      */
-    protected List<ThriftServerInfo> thriftServers;
+    private List<ThriftServerInfo> thriftServers;
 
     /**
      * 服务器数量
      */
-    protected int thriftServerCount = 0;
+    private int thriftServerCount = 0;
 
     /**
      * 用于异步方式获取连接的服务
@@ -174,7 +174,7 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
         TaskEngine.getInstance();
 
         // 创建分区列表
-        this.partitions = new ArrayList<>(thriftServerCount);
+        this.partitions = new ArrayList<>(getThriftServerCount());
 
         this.poolAvailabilityThreshold = this.config.getPoolAvailabilityThreshold();
         this.connectionStrategy = new DefaultThriftConnectionStrategy<>(this);
@@ -216,7 +216,7 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
 
             partitions.add(thriftConnectionPartition);
             thriftServers.add(thriftServerInfo);
-            thriftServerCount = partitions.size();
+            setThriftServerCount(partitions.size());
             return true;
         } catch (Exception e) {
             logger.error("无法添加Thrfit服务器到连接池 ip:" + thriftServerInfo.getHost() + " 端口：" + thriftServerInfo.getPort(), e);
@@ -254,7 +254,7 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
                     thriftConnectionPartition.stopThreads();
                     partitions.remove(thriftConnectionPartition);
                     thriftServers.remove(thriftServerInfo);
-                    thriftServerCount = partitions.size();
+                    setThriftServerCount(partitions.size());
                     logger.info("移除服务器操作完成 剩余服务器数量：" + getThriftServerCount());
                     if (getThriftServerCount() == 0) {
                         logger.warn("连接池中没有可用thrift服务器 无法获取连接");
@@ -665,21 +665,21 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
      * @param thriftConnectionPartition 需要销毁的连接分区对象
      */
     public void destroyThriftConnectionPartition(ThriftConnectionPartition<T> thriftConnectionPartition) {
-        try {
-            serverListLock.writeLock().lock();
-            // 首先移除分区信息
-            partitions.remove(thriftConnectionPartition);
-            thriftConnectionPartition.stopThreads();
-            ThriftServerInfo thriftServerInfo = thriftConnectionPartition.getThriftServerInfo();
-            thriftServers.remove(thriftServerInfo);
-            thriftServerCount = partitions.size();
-            logger.info("连接池移除服务器信息：" + thriftServerInfo.getHost() + " 端口:" + thriftServerInfo.getPort());
-            if (getThriftServerCount() == 0) {
-                logger.error("当前连接池中无可用服务器  无法获取新的客户端连接");
-            }
-        } finally {
-            serverListLock.writeLock().unlock();
-        }
+//        try {
+//            serverListLock.writeLock().lock();
+//            // 首先移除分区信息
+//            partitions.remove(thriftConnectionPartition);
+//            thriftConnectionPartition.stopThreads();
+//            ThriftServerInfo thriftServerInfo = thriftConnectionPartition.getThriftServerInfo();
+//            thriftServers.remove(thriftServerInfo);
+//            setThriftServerCount(partitions.size());
+//            logger.info("连接池移除服务器信息：" + thriftServerInfo.getHost() + " 端口:" + thriftServerInfo.getPort());
+//            if (getThriftServerCount() == 0) {
+//                logger.error("当前连接池中无可用服务器  无法获取新的客户端连接");
+//            }
+//        } finally {
+//            serverListLock.writeLock().unlock();
+//        }
         List<ThriftConnectionHandle<T>> clist = new LinkedList<>();
         thriftConnectionPartition.getFreeConnections().drainTo(clist);
         for (ThriftConnectionHandle<T> c : clist) {
@@ -694,6 +694,13 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
      */
     public int getThriftServerCount() {
         return thriftServerCount;
+    }
+
+    /**
+     * @param thriftServerCount the thriftServerCount to set
+     */
+    public void setThriftServerCount(int thriftServerCount) {
+        this.thriftServerCount = thriftServerCount;
     }
 
 }

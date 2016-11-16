@@ -29,7 +29,11 @@ import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
 import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
 import java.util.ArrayList;
-import java.util.function.Predicate;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 连接分区实体类<br>
@@ -42,7 +46,7 @@ import java.util.function.Predicate;
 public class ThriftConnectionPartition<T extends TServiceClient> implements Serializable {
 
     private static final long serialVersionUID = 1575062547601396682L;
-
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(ThriftConnectionPartition.class);
     /**
      * 空闲连接队列
      */
@@ -322,13 +326,21 @@ public class ThriftConnectionPartition<T extends TServiceClient> implements Seri
         this.poolWatchThreadSignalQueue.offer(new Object());
     }
 
-    public void freePartitions() {
-        freeConnections.removeIf(new Predicate<ThriftConnectionHandle<T>>() {
-            @Override
-            public boolean test(ThriftConnectionHandle<T> t) {
+    public void free() {
 
-                return t.isClosed() || t.isPossiblyBroken();
+        List<ThriftConnectionHandle<T>> l = new ArrayList<>();
+        freeConnections.drainTo(l);
+        l.forEach(new Consumer<ThriftConnectionHandle<T>>() {
+            @Override
+            public void accept(ThriftConnectionHandle<T> t) {
+                try {
+                    t.internalClose();
+                } catch (ThriftConnectionPoolException ex) {
+                    log.warn("Fail to close thrift connection. ex = {}", new Object[]{ex.getLocalizedMessage(), ex});
+                }
             }
         });
+        updateCreatedConnections(-l.size());
     }
+
 }

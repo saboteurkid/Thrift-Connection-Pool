@@ -16,10 +16,9 @@
 package com.wmz7year.thrift.pool.config;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import com.netflix.astyanax.retry.RetryNTimes;
-import com.netflix.astyanax.retry.RetryPolicy;
+import com.sk.pool.TestConnectionFunction;
 import com.sk.transport.TTransportProvider;
-import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -27,10 +26,20 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.thrift.TServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkNotNull;
+import com.sk.pool.TestDecisionStragegy;
+import com.sun.corba.se.spi.ior.MakeImmutable;
+import com.wmz7year.thrift.pool.connection.ThriftConnection;
 
 /**
  * thrift连接池配置类<br>
@@ -143,15 +152,14 @@ public class ThriftConnectionPoolConfig {
 
     private TTransportProvider transportProvider;
 
+    private TestConnectionFunction connectionFunction;
+
+    private TestDecisionStragegy testDecisionStragegy;
+
     /**
      * thrift接口模式
      */
     private ThriftServiceType thriftServiceType;
-
-    /**
-     *
-     */
-    private RetryPolicy pollingConnectionRetryPolicy = new RetryNTimes(3);
 
     public ThriftConnectionPoolConfig() {
         this(ThriftServiceType.SINGLE_INTERFACE);
@@ -399,24 +407,8 @@ public class ThriftConnectionPoolConfig {
             }
         } else if (getThriftServiceType() == ThriftServiceType.MULTIPLEXED_INTERFACE) {
             if (clientClasses.isEmpty()) {
-                throw new ThriftConnectionPoolException("Client classes must be non-empty.");
+                throw new ThriftConnectionPoolException("Need at least one client class.");
             }
-            // 检测所有接口
-//            List<String> toRemoveClasses = new ArrayList<>();
-//            Iterator<Entry<String, Class<? extends TServiceClient>>> iterator = clientClasses.entrySet().iterator();
-//            while (iterator.hasNext()) {
-//                Entry<String, Class<? extends TServiceClient>> entry = iterator.next();
-//                Class<? extends TServiceClient> clazz = entry.getValue();
-//                try {
-//                    clazz.getMethod("ping");
-//                } catch (NoSuchMethodException e) {
-//                    toRemoveClasses.add(entry.getKey());
-//                    logger.warn("接口：" + entry.getKey() + " 没有实现ping方法 无法创建对应的服务客户端");
-//                }
-//            }
-//            for (String toRemoveClass : toRemoveClasses) {
-//                clientClasses.remove(toRemoveClass);
-//            }
             Iterator<String> servicesNameIterator = clientClasses.keySet().iterator();
             while (servicesNameIterator.hasNext()) {
                 logger.info("注册服务客户端：" + servicesNameIterator.next());
@@ -465,6 +457,14 @@ public class ThriftConnectionPoolConfig {
         if (transportProvider == null) {
             throw new ThriftConnectionPoolException("transport provider must be non-null");
         }
+        if (connectionFunction == null) {
+            logger.warn("`connectionFunction` should be set.");
+        }else{
+            if(testDecisionStragegy == null){
+                throw new ThriftConnectionPoolException("testDecisionStragegy must be set while connectionFunction is not null");
+            }
+        }
+        
     }
 
     /**
@@ -482,18 +482,31 @@ public class ThriftConnectionPoolConfig {
     }
 
     /**
-     * @return the pollingConnectionRetryPolicy
+     * @return the connectionFunction
      */
-    public RetryPolicy getPollingConnectionRetryPolicy() {
-        return pollingConnectionRetryPolicy.duplicate();
+    public TestConnectionFunction getTestConnectionFunction() {
+        return connectionFunction;
     }
 
     /**
-     * @param pollingConnectionRetryPolicy the pollingConnectionRetryPolicy to
-     * set
+     * @param connectionFunction the connectionFunction to set
      */
-    public void setPollingConnectionRetryPolicy(RetryPolicy pollingConnectionRetryPolicy) {
-        this.pollingConnectionRetryPolicy = pollingConnectionRetryPolicy;
+    public void setTestConnectionFunction(TestConnectionFunction connectionFunction) {
+        this.connectionFunction = connectionFunction;
+    }
+
+    /**
+     * @return the testDecisionStragegy
+     */
+    public TestDecisionStragegy getTestDecisionStragegy() {
+        return testDecisionStragegy;
+    }
+
+    /**
+     * @param testDecisionStragegy the testDecisionStragegy to set
+     */
+    public void setTestDecisionStragegy(TestDecisionStragegy testDecisionStragegy) {
+        this.testDecisionStragegy = testDecisionStragegy;
     }
 
     /**

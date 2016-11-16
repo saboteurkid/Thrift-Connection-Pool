@@ -15,9 +15,7 @@
  */
 package com.wmz7year.thrift.pool;
 
-import com.netflix.astyanax.retry.RetryNTimes;
-import com.netflix.astyanax.retry.RetryPolicy;
-import com.netflix.astyanax.retry.RunOnceRetryPolicyFactory;
+import com.sk.pool.TestConnectionFunction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -29,8 +27,11 @@ import org.apache.thrift.TServiceClient;
 import com.wmz7year.thrift.pool.config.ThriftServerInfo;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
 import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.io.IOException;
+import java.net.SocketException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.thrift.TException;
 
 /**
  * 默认连接池获取策略实现类
@@ -40,7 +41,6 @@ import org.slf4j.LoggerFactory;
  */
 public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends AbstractThriftConnectionStrategy<T> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultThriftConnectionStrategy.class);
     private static final long serialVersionUID = 142121086900189271L;
 
     public DefaultThriftConnectionStrategy(ThriftConnectionPool<T> pool) {
@@ -58,9 +58,9 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
         // TODO 设置当连接获取超时返回null？
         if (result == null) {
             if (this.pool.getThriftServerCount() == 0) {
-                throw new ThriftConnectionPoolException("Thrift servers count is 0.");
+                throw new ThriftConnectionPoolException("No more server remain.");
             }
-            int partition = (int) (Thread.currentThread().getId() % this.pool.thriftServerCount);
+            int partition = (int) (Thread.currentThread().getId() % this.pool.getThriftServerCount());
 
             ThriftConnectionPartition<T> thriftConnectionPartition = this.pool.partitions.get(partition);
 
@@ -69,9 +69,6 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
                         TimeUnit.MILLISECONDS);
                 if (result == null) {
                     throw new ThriftConnectionPoolException("Timed out waiting for a free available connection.");
-                } else if (result.isClosed()) {
-
-                    throw new ThriftConnectionPoolException("Pooled a closed connection.");
                 }
             } catch (InterruptedException e) {
                 throw new ThriftConnectionPoolException(e);
@@ -105,42 +102,18 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
         if (thriftConnectionPartition == null) {
             throw new ThriftConnectionPoolException("没有找到对应服务器节点：" + Arrays.toString(nodeID));
         }
-        RetryPolicy pollingConnectionRetryPolicy = this.pool.getConfig().getPollingConnectionRetryPolicy();
+
         ThriftConnection<T> result = null;
-        pollingConnectionRetryPolicy.begin();
-
-        do {
-            try {
-                result = thriftConnectionPartition.poolFreeConnection(this.pool.connectionTimeoutInMs,
-                        TimeUnit.MILLISECONDS);
-                if (result == null) {
-
-                } else if (result.isClosed()) {
-                    pool.releaseConnection(result);
-                    thriftConnectionPartition.freePartitions();
-                } else {
-                    pollingConnectionRetryPolicy.success();
-                }
-            } catch (InterruptedException ex) {
-                LOGGER.error("Fail to poll free connection from pool. Attemp count: {}. ex = {}",
-                        new Object[]{pollingConnectionRetryPolicy.getAttemptCount(), ex.getLocalizedMessage(), ex});
-            }
-        } while (pollingConnectionRetryPolicy.allowRetry());
-
-        // After retry polling connection.
         try {
+            result = thriftConnectionPartition.poolFreeConnection(this.pool.connectionTimeoutInMs,
+                    TimeUnit.MILLISECONDS);
             if (result == null) {
-                return createConnection(thriftConnectionPartition);
-            } else {
-                return result;
+                throw new ThriftConnectionPoolException("Timed out waiting for a free available connection.");
             }
-        } catch (ThriftConnectionPoolException ex) {
-            terminateAllConnections();
-            ThriftConnectionPoolException e = new ThriftConnectionPoolException("Cannot obtain connection. The connection to server may be broken.");
-            e.addSuppressed(ex);
-            throw e;
+        } catch (InterruptedException e) {
+            throw new ThriftConnectionPoolException(e);
         }
-
+        return result;
     }
 
     /*
@@ -152,7 +125,7 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
     public void terminateAllConnections() {
         this.terminationLock.lock();
         try {
-            for (int i = 0; i < this.pool.thriftServerCount; i++) {
+            for (int i = 0; i < this.pool.getThriftServerCount(); i++) {
                 this.pool.partitions.get(i).setUnableToCreateMoreTransactions(false);
                 List<ThriftConnectionHandle<T>> clist = new LinkedList<>();
                 this.pool.partitions.get(i).getFreeConnections().drainTo(clist);
@@ -173,15 +146,15 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
     public ThriftConnection<T> pollConnection() {
         ThriftConnection<T> result;
         if (pool.getThriftServerCount() == 0) {
-            throw new IllegalStateException("当前无可用连接服务器");
+            throw new IllegalStateException("No more server remain.");
         }
-        int partition = (int) (Thread.currentThread().getId() % this.pool.thriftServerCount);
+        int partition = (int) (Thread.currentThread().getId() % this.pool.getThriftServerCount());
 
         ThriftConnectionPartition<T> thriftConnectionPartition = this.pool.partitions.get(partition);
 
         result = thriftConnectionPartition.poolFreeConnection();
         if (result == null) {
-            for (int i = 0; i < this.pool.thriftServerCount; i++) {
+            for (int i = 0; i < this.pool.getThriftServerCount(); i++) {
                 if (i == partition) {
                     continue;
                 }
@@ -196,11 +169,27 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
         if (!thriftConnectionPartition.isUnableToCreateMoreTransactions()) {
             this.pool.maybeSignalForMoreConnections(thriftConnectionPartition);
         }
+        
+
         return result;
     }
 
-    public ThriftConnectionHandle<T> createConnection(ThriftConnectionPartition<T> thriftConnectionPartition) throws ThriftConnectionPoolException {
-        return new ThriftConnectionHandle<>(null, thriftConnectionPartition, pool, false);
+    private ThriftConnection<T> testConnectionIfNeed(ThriftConnectionPartition<T> thriftConnectionPartition,
+            ThriftConnection<T> connection) {
+        TestConnectionFunction testConnectionFunction = pool.getConfig().getTestConnectionFunction();
+        if (testConnectionFunction != null && pool.getConfig().getTestDecisionStragegy().makeTest()) {
+            try {
+                testConnectionFunction.test(connection);
+                return connection;
+            } catch (TException ex) {
+                Throwable cause = ex.getCause();
+                if (cause instanceof IOException) {
+                    thriftConnectionPartition.free();
+                    return null;
+                }
+            }
+        }
+        return connection;
     }
 
 }
