@@ -16,6 +16,7 @@
 package com.wmz7year.thrift.pool.config;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import com.sk.pool.TestConnectionFunction;
 import com.sk.transport.TTransportProvider;
 
 import java.util.ArrayList;
@@ -33,6 +34,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkNotNull;
+import com.sk.pool.TestDecisionStragegy;
+import com.sun.corba.se.spi.ior.MakeImmutable;
+import com.wmz7year.thrift.pool.connection.ThriftConnection;
 
 /**
  * thrift连接池配置类<br>
@@ -144,6 +151,10 @@ public class ThriftConnectionPoolConfig {
     private boolean noServerStartUp;
 
     private TTransportProvider transportProvider;
+
+    private TestConnectionFunction connectionFunction;
+
+    private TestDecisionStragegy testDecisionStragegy;
 
     /**
      * thrift接口模式
@@ -395,24 +406,8 @@ public class ThriftConnectionPoolConfig {
                 throw new ThriftConnectionPoolException("Thrift客户端实现类必须带有ping()方法用于检测连接");
             }
         } else if (getThriftServiceType() == ThriftServiceType.MULTIPLEXED_INTERFACE) {
-            if (clientClasses.size() == 0) {
-                throw new ThriftConnectionPoolException("多服务thrift客户端实现类未设置");
-            }
-            // 检测所有接口
-            List<String> toRemoveClasses = new ArrayList<>();
-            Iterator<Entry<String, Class<? extends TServiceClient>>> iterator = clientClasses.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, Class<? extends TServiceClient>> entry = iterator.next();
-                Class<? extends TServiceClient> clazz = entry.getValue();
-                try {
-                    clazz.getMethod("ping");
-                } catch (NoSuchMethodException e) {
-                    toRemoveClasses.add(entry.getKey());
-                    logger.warn("接口：" + entry.getKey() + " 没有实现ping方法 无法创建对应的服务客户端");
-                }
-            }
-            for (String toRemoveClass : toRemoveClasses) {
-                clientClasses.remove(toRemoveClass);
+            if (clientClasses.isEmpty()) {
+                throw new ThriftConnectionPoolException("Need at least one client class.");
             }
             Iterator<String> servicesNameIterator = clientClasses.keySet().iterator();
             while (servicesNameIterator.hasNext()) {
@@ -462,6 +457,12 @@ public class ThriftConnectionPoolConfig {
         if (transportProvider == null) {
             throw new ThriftConnectionPoolException("transport provider must be non-null");
         }
+        if (connectionFunction == null) {
+            logger.warn("`connectionFunction` should be set.");
+        } else if (testDecisionStragegy == null) {
+            throw new ThriftConnectionPoolException("testDecisionStragegy must be set while connectionFunction is not null");
+        }
+
     }
 
     /**
@@ -476,6 +477,34 @@ public class ThriftConnectionPoolConfig {
      */
     public void setTransportProvider(TTransportProvider transportProvider) {
         this.transportProvider = transportProvider;
+    }
+
+    /**
+     * @return the connectionFunction
+     */
+    public TestConnectionFunction getTestConnectionFunction() {
+        return connectionFunction;
+    }
+
+    /**
+     * @param connectionFunction the connectionFunction to set
+     */
+    public void setTestConnectionFunction(TestConnectionFunction connectionFunction) {
+        this.connectionFunction = connectionFunction;
+    }
+
+    /**
+     * @return the testDecisionStragegy
+     */
+    public TestDecisionStragegy getTestDecisionStragegy() {
+        return testDecisionStragegy;
+    }
+
+    /**
+     * @param testDecisionStragegy the testDecisionStragegy to set
+     */
+    public void setTestDecisionStragegy(TestDecisionStragegy testDecisionStragegy) {
+        this.testDecisionStragegy = testDecisionStragegy;
     }
 
     /**
