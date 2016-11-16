@@ -56,7 +56,7 @@ public class MultiplexedServiceTest extends BasicAbstractTest {
         config.setConnectTimeout(3000);
 
         config.setThriftProtocol(TProtocolType.BINARY);
-        
+
         config.setTransportProvider(new TTransportProvider() {
             @Override
             public TTransport get(String host, int port, int connectionTimeOut) throws Exception {
@@ -84,17 +84,17 @@ public class MultiplexedServiceTest extends BasicAbstractTest {
 
         config.check();
 
-        ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<TServiceClient>(config);
-        ThriftConnection<TServiceClient> connection = pool.getConnection();
-        // example service
-        com.wmz7year.thrift.pool.example.Example.Client exampleServiceClient = connection.getClient("example",
-                Example.Client.class);
-        exampleServiceClient.ping();
+        try (ThriftConnectionPool<TServiceClient> pool = new ThriftConnectionPool<>(config)) {
+            ThriftConnection<TServiceClient> connection = pool.getConnection();
+            // example service
+            com.wmz7year.thrift.pool.example.Example.Client exampleServiceClient = connection.getClient("example",
+                    Example.Client.class);
+            exampleServiceClient.ping();
 
-        // other service
-        com.wmz7year.thrift.pool.example.Other.Client otherServiceClient = connection.getClient("other",
-                Other.Client.class);
-        otherServiceClient.ping();
-        pool.close();
+            // other service
+            com.wmz7year.thrift.pool.example.Other.Client otherServiceClient = connection.getClient("other",
+                    Other.Client.class);
+            otherServiceClient.ping();
+        }
     }
 }

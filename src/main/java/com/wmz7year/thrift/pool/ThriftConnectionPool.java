@@ -164,7 +164,7 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
             // 移除完毕检查数量
             thriftServerCount = thriftServers.size();
             if (thriftServerCount == 0 && !this.config.isNoServerStartUp()) {
-                throw new ThriftConnectionPoolException("无可用thrift服务器，连接池启动失败");
+                throw new ThriftConnectionPoolException("thriftServerCount = " + thriftServerCount + ", cannot start connection without server.");
             }
         }
 
@@ -593,7 +593,7 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
                 client = connection.getClient();
             } else {
                 Map<String, T> muiltServiceClients = connection.getMuiltServiceClients();
-                if (muiltServiceClients.size() == 0) { // 没有可用的客户端 直接返回
+                if (muiltServiceClients.isEmpty()) { // 没有可用的客户端 直接返回
                     return false;
                 }
                 Iterator<T> iterator = muiltServiceClients.values().iterator();

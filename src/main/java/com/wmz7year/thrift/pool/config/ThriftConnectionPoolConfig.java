@@ -16,8 +16,10 @@
 package com.wmz7year.thrift.pool.config;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import com.netflix.astyanax.retry.RetryNTimes;
+import com.netflix.astyanax.retry.RetryPolicy;
 import com.sk.transport.TTransportProvider;
-
+import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,14 +27,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.thrift.TServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
 
 /**
  * thrift连接池配置类<br>
@@ -149,6 +147,11 @@ public class ThriftConnectionPoolConfig {
      * thrift接口模式
      */
     private ThriftServiceType thriftServiceType;
+
+    /**
+     *
+     */
+    private RetryPolicy pollingConnectionRetryPolicy = new RetryNTimes(3);
 
     public ThriftConnectionPoolConfig() {
         this(ThriftServiceType.SINGLE_INTERFACE);
@@ -395,25 +398,25 @@ public class ThriftConnectionPoolConfig {
                 throw new ThriftConnectionPoolException("Thrift客户端实现类必须带有ping()方法用于检测连接");
             }
         } else if (getThriftServiceType() == ThriftServiceType.MULTIPLEXED_INTERFACE) {
-            if (clientClasses.size() == 0) {
-                throw new ThriftConnectionPoolException("多服务thrift客户端实现类未设置");
+            if (clientClasses.isEmpty()) {
+                throw new ThriftConnectionPoolException("Client classes must be non-empty.");
             }
             // 检测所有接口
-            List<String> toRemoveClasses = new ArrayList<>();
-            Iterator<Entry<String, Class<? extends TServiceClient>>> iterator = clientClasses.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, Class<? extends TServiceClient>> entry = iterator.next();
-                Class<? extends TServiceClient> clazz = entry.getValue();
-                try {
-                    clazz.getMethod("ping");
-                } catch (NoSuchMethodException e) {
-                    toRemoveClasses.add(entry.getKey());
-                    logger.warn("接口：" + entry.getKey() + " 没有实现ping方法 无法创建对应的服务客户端");
-                }
-            }
-            for (String toRemoveClass : toRemoveClasses) {
-                clientClasses.remove(toRemoveClass);
-            }
+//            List<String> toRemoveClasses = new ArrayList<>();
+//            Iterator<Entry<String, Class<? extends TServiceClient>>> iterator = clientClasses.entrySet().iterator();
+//            while (iterator.hasNext()) {
+//                Entry<String, Class<? extends TServiceClient>> entry = iterator.next();
+//                Class<? extends TServiceClient> clazz = entry.getValue();
+//                try {
+//                    clazz.getMethod("ping");
+//                } catch (NoSuchMethodException e) {
+//                    toRemoveClasses.add(entry.getKey());
+//                    logger.warn("接口：" + entry.getKey() + " 没有实现ping方法 无法创建对应的服务客户端");
+//                }
+//            }
+//            for (String toRemoveClass : toRemoveClasses) {
+//                clientClasses.remove(toRemoveClass);
+//            }
             Iterator<String> servicesNameIterator = clientClasses.keySet().iterator();
             while (servicesNameIterator.hasNext()) {
                 logger.info("注册服务客户端：" + servicesNameIterator.next());
@@ -476,6 +479,21 @@ public class ThriftConnectionPoolConfig {
      */
     public void setTransportProvider(TTransportProvider transportProvider) {
         this.transportProvider = transportProvider;
+    }
+
+    /**
+     * @return the pollingConnectionRetryPolicy
+     */
+    public RetryPolicy getPollingConnectionRetryPolicy() {
+        return pollingConnectionRetryPolicy.duplicate();
+    }
+
+    /**
+     * @param pollingConnectionRetryPolicy the pollingConnectionRetryPolicy to
+     * set
+     */
+    public void setPollingConnectionRetryPolicy(RetryPolicy pollingConnectionRetryPolicy) {
+        this.pollingConnectionRetryPolicy = pollingConnectionRetryPolicy;
     }
 
     /**
