@@ -34,27 +34,28 @@ public interface RetryPolicy {
 
     /**
      * Operation has failed
+     * @param e the exception
      */
     void failure(Exception e);
 
     /**
      * Ask the policy if a retry is allowed. This may internally sleep
      * 
-     * @return
+     * @return {@code true} if allow to retry, otherwise {@code false}
      */
     boolean allowRetry();
 
     /**
      * Return the number of attempts since begin was called
      * 
-     * @return
+     * @return the attemptCount.
      */
     int getAttemptCount();
 
     /**
      * Duplicate this policy into a fresh instance
      * 
-     * @return
+     * @return an image of this policy.
      */
     RetryPolicy duplicate();
     

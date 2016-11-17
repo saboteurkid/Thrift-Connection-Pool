@@ -149,7 +149,13 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
             throw new IllegalStateException("No more server remain.");
         }
         int partition = (int) (Thread.currentThread().getId() % this.pool.getThriftServerCount());
-
+        if (this.pool.partitions.size() < pool.getThriftServerCount()) {
+            try {
+                pool.initPartitions(pool.getConfig());
+            } catch (ThriftConnectionPoolException ex) {
+                return null;
+            }
+        }
         ThriftConnectionPartition<T> thriftConnectionPartition = this.pool.partitions.get(partition);
 
         result = thriftConnectionPartition.poolFreeConnection();
@@ -169,9 +175,8 @@ public class DefaultThriftConnectionStrategy<T extends TServiceClient> extends A
         if (!thriftConnectionPartition.isUnableToCreateMoreTransactions()) {
             this.pool.maybeSignalForMoreConnections(thriftConnectionPartition);
         }
-        
 
-        return result;
+        return testConnectionIfNeed(thriftConnectionPartition, result);
     }
 
     private ThriftConnection<T> testConnectionIfNeed(ThriftConnectionPartition<T> thriftConnectionPartition,

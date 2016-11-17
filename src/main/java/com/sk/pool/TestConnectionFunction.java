@@ -21,7 +21,7 @@ import org.apache.thrift.TException;
 /**
  *
  * @author saboteurkid
- * @param <T>
+ * @param <T> the thrift connection
  */
 public interface TestConnectionFunction<T extends ThriftConnection> {
 

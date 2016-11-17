@@ -78,12 +78,12 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
     /**
      * 服务器数量
      */
-    private int thriftServerCount = 0;
+    private final int thriftServerCount;
 
     /**
      * 用于异步方式获取连接的服务
      */
-    private ListeningExecutorService asyncExecutor;
+    private final ListeningExecutorService asyncExecutor;
 
     /**
      * 保存分区的连接信息
@@ -141,8 +141,6 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
 
         // 判断是否是懒加载 如果是则验证连接
         if (!this.config.isLazyInit()) {
-            // 需要删除的服务器列表
-            List<ThriftServerInfo> needToDelete = new ArrayList<>();
 
             // 尝试获取一个连接
             for (int i = 0; i < thriftServerCount; i++) {
@@ -151,18 +149,11 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
                     ThriftConnection<T> connection = obtainRawInternalConnection(thriftServerInfo);
                     connection.close();
                 } catch (Exception e) {
-                    needToDelete.add(thriftServerInfo);
-                    logger.error("无法从服务器 " + thriftServerInfo.toString() + "中获取连接 将移除该服务器");
+                    logger.error("Cannot connect thrift service: {}.", new Object[]{thriftServerInfo, e});
                 }
             }
 
-            // 删除服务器信息
-            for (ThriftServerInfo thriftServerInfo : needToDelete) {
-                thriftServers.remove(thriftServerInfo);
-            }
-
             // 移除完毕检查数量
-            thriftServerCount = thriftServers.size();
             if (thriftServerCount == 0 && !this.config.isNoServerStartUp()) {
                 throw new ThriftConnectionPoolException("thriftServerCount = " + thriftServerCount + ", cannot start connection without server.");
             }
@@ -185,11 +176,22 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
             this.connectionTimeoutInMs = Long.MAX_VALUE;
         }
 
+        initPartitions(config);
+    }
+
+    protected final void initPartitions(ThriftConnectionPoolConfig poolConfig) throws ThriftConnectionPoolException {
         // 根据服务器配置创建不同的连接分区
         for (int p = 0; p < thriftServerCount; p++) {
             ThriftServerInfo thriftServerInfo = thriftServers.get(p);
-            ThriftConnectionPartition<T> thriftConnectionPartition = createThriftConnectionPartition(thriftServerInfo);
-            partitions.add(thriftConnectionPartition);
+            try {
+                ThriftConnectionPartition<T> thriftConnectionPartition = createThriftConnectionPartition(thriftServerInfo);
+                partitions.add(thriftConnectionPartition);
+            } catch (ThriftConnectionPoolException ex) {
+                logger.warn("Thrift service: {} seem not started.", new Object[]{thriftServerInfo, ex.getLocalizedMessage(), ex});
+                if (!poolConfig.isNoServerStartUp()) {
+                    throw ex;
+                }
+            }
         }
     }
 
@@ -216,7 +218,6 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
 
             partitions.add(thriftConnectionPartition);
             thriftServers.add(thriftServerInfo);
-            setThriftServerCount(partitions.size());
             return true;
         } catch (Exception e) {
             logger.error("无法添加Thrfit服务器到连接池 ip:" + thriftServerInfo.getHost() + " 端口：" + thriftServerInfo.getPort(), e);
@@ -254,7 +255,6 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
                     thriftConnectionPartition.stopThreads();
                     partitions.remove(thriftConnectionPartition);
                     thriftServers.remove(thriftServerInfo);
-                    setThriftServerCount(partitions.size());
                     logger.info("移除服务器操作完成 剩余服务器数量：" + getThriftServerCount());
                     if (getThriftServerCount() == 0) {
                         logger.warn("连接池中没有可用thrift服务器 无法获取连接");
@@ -694,13 +694,6 @@ public class ThriftConnectionPool<T extends TServiceClient> implements Serializa
      */
     public int getThriftServerCount() {
         return thriftServerCount;
-    }
-
-    /**
-     * @param thriftServerCount the thriftServerCount to set
-     */
-    public void setThriftServerCount(int thriftServerCount) {
-        this.thriftServerCount = thriftServerCount;
     }
 
 }

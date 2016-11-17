@@ -114,7 +114,7 @@ public class MulitServiceThriftConnecion<T extends TServiceClient> implements Th
                 String serviceName = entry.getKey();
                 Class<? extends TServiceClient> clientClass = entry.getValue();
                 TMultiplexedProtocol multiProtocol = new TMultiplexedProtocol(protocol, serviceName);
-                // 反射实例化客户端对象
+                // Instance a client to thirft service.
                 Constructor<? extends TServiceClient> clientConstructor = clientClass.getConstructor(TProtocol.class);
                 T client = (T) clientConstructor.newInstance(multiProtocol);
                 clients.put(serviceName, client);
@@ -124,8 +124,7 @@ public class MulitServiceThriftConnecion<T extends TServiceClient> implements Th
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new ThriftConnectionPoolException("无法连接服务器：" + host + " 端口：" + port, e);
+            throw new ThriftConnectionPoolException("Cannot open connnecion to host：" + host + " post：" + port, e);
         }
     }
 

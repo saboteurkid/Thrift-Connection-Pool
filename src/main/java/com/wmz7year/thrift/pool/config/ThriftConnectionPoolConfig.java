@@ -38,7 +38,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkNotNull;
 import com.sk.pool.TestDecisionStragegy;
-import com.sun.corba.se.spi.ior.MakeImmutable;
 import com.wmz7year.thrift.pool.connection.ThriftConnection;
 
 /**
@@ -376,10 +375,26 @@ public class ThriftConnectionPoolConfig {
         return thriftServiceType;
     }
 
+    /**
+     * If return {@code true}: the pool initalization will not fall and run
+     * normally.<br>
+     * If return {@code false}: the pool initalization will be falled and pool
+     * will not init.
+     *
+     * @return {@code noServerStartUp}
+     */
     public boolean isNoServerStartUp() {
         return noServerStartUp;
     }
 
+    /**
+     * If set {@code true}: the pool initalization will not fall and run
+     * normally.<br>
+     * If set {@code false}: the pool initalization will be falled and pool will
+     * not init.
+     *
+     * @param noServerStartUp the value to set.
+     */
     public void setNoServerStartUp(boolean noServerStartUp) {
         this.noServerStartUp = noServerStartUp;
     }
@@ -459,12 +474,10 @@ public class ThriftConnectionPoolConfig {
         }
         if (connectionFunction == null) {
             logger.warn("`connectionFunction` should be set.");
-        }else{
-            if(testDecisionStragegy == null){
-                throw new ThriftConnectionPoolException("testDecisionStragegy must be set while connectionFunction is not null");
-            }
+        } else if (testDecisionStragegy == null) {
+            throw new ThriftConnectionPoolException("testDecisionStragegy must be set while connectionFunction is not null");
         }
-        
+
     }
 
     /**
