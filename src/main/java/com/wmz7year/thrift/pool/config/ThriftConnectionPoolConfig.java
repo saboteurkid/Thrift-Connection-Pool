@@ -17,8 +17,9 @@ package com.wmz7year.thrift.pool.config;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import com.sk.pool.TestConnectionFunction;
+import com.sk.pool.TestDecisionStragegy;
 import com.sk.transport.TTransportProvider;
-
+import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,19 +27,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.thrift.TServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.wmz7year.thrift.pool.exception.ThriftConnectionPoolException;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkNotNull;
-import com.sk.pool.TestDecisionStragegy;
-import com.wmz7year.thrift.pool.connection.ThriftConnection;
 
 /**
  * thrift连接池配置类<br>
