@@ -398,19 +398,13 @@ public class ThriftConnectionPoolConfig {
      */
     public void check() throws ThriftConnectionPoolException {
         if (connectTimeout <= 0) {
-            throw new ThriftConnectionPoolException("连接超时时间必须大于0");
+            throw new ThriftConnectionPoolException("connectTimeout must be greater than 0");
         }
 
         // 判断是否是单接口模式 如果是则只检测单接口
         if (getThriftServiceType() == ThriftServiceType.SINGLE_INTERFACE) {
             if (clientClass == null) {
-                throw new ThriftConnectionPoolException("thrift客户端实现类未设置");
-            }
-            // 检测ping方法
-            try {
-                clientClass.getMethod("ping");
-            } catch (NoSuchMethodException e) {
-                throw new ThriftConnectionPoolException("Thrift客户端实现类必须带有ping()方法用于检测连接");
+                throw new ThriftConnectionPoolException("Chưa khai báo client class kìa.\n Client class is not defined.");
             }
         } else if (getThriftServiceType() == ThriftServiceType.MULTIPLEXED_INTERFACE) {
             if (clientClasses.isEmpty()) {
@@ -418,48 +412,48 @@ public class ThriftConnectionPoolConfig {
             }
             Iterator<String> servicesNameIterator = clientClasses.keySet().iterator();
             while (servicesNameIterator.hasNext()) {
-                logger.info("注册服务客户端：" + servicesNameIterator.next());
+                logger.info("Client class：" + servicesNameIterator.next());
             }
         }
 
         if (maxConnectionPerServer <= 0) {
-            throw new ThriftConnectionPoolException("每台服务器的最大连接数必须大于0");
+            throw new ThriftConnectionPoolException("maxConnectionPerServer must be greater than 0");
         }
 
         if (minConnectionPerServer < 0) {
-            throw new ThriftConnectionPoolException("每台服务器最小连接数不能小于0");
+            throw new ThriftConnectionPoolException("minConnectionPerServer must be greater or equal 0");
         }
 
         if (minConnectionPerServer > maxConnectionPerServer) {
-            throw new ThriftConnectionPoolException("每台服务器的最小连接数不能超过最大连接数配置");
+            throw new ThriftConnectionPoolException("minConnectionPerServer must be less than or equal maxConnectionPerServer");
         }
 
         if (idleConnectionTestPeriodInSeconds <= 0) {
-            throw new ThriftConnectionPoolException("检测时间周期必须大于0秒");
+            throw new ThriftConnectionPoolException("idleConnectionTestPeriodInSeconds must be greater than 0");
         }
 
         if (idleMaxAgeInSeconds <= 0) {
-            throw new ThriftConnectionPoolException("未使用连接关闭时间必须大于0秒");
+            throw new ThriftConnectionPoolException("idleMaxAgeInSeconds must be greater than 0");
         }
 
         if (maxConnectionAgeInSeconds <= 0) {
-            throw new ThriftConnectionPoolException("连接最大生存时间必须大于0秒");
+            throw new ThriftConnectionPoolException("acquireRetryAttempts must be greater than 0");
         }
 
         if (acquireRetryAttempts < 0) {
-            throw new ThriftConnectionPoolException("获取连接重试次数不能小于0");
+            throw new ThriftConnectionPoolException("acquireRetryAttempts must be greater or equal 0");
         }
 
         if (acquireRetryDelayInMs < 0) {
-            throw new ThriftConnectionPoolException("获取连接重试等待时间不能小于0毫秒");
+            throw new ThriftConnectionPoolException("acquireRetryDelayInMs must be greater or equal 0");
         }
 
         if (connectionTimeoutInMs < 0) {
-            throw new ThriftConnectionPoolException("获取连接等待时间不能小于0毫秒");
+            throw new ThriftConnectionPoolException("connectionTimeoutInMs must be greater or equal 0");
         }
 
         if (acquireIncrement <= 0) {
-            throw new ThriftConnectionPoolException("每次创建原始连接的数量必须大于0个");
+            throw new ThriftConnectionPoolException("acquireIncrement must be greater than 0");
         }
         if (transportProvider == null) {
             throw new ThriftConnectionPoolException("transport provider must be non-null");
